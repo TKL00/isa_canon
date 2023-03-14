@@ -125,6 +125,7 @@ def graph_canon(G):
         
         B = shatter_set(p, adj_matrix)
 
+        ## NOTE: Abort refinement if current partition is lexicographically larger than the global minimum
         while len(B) != 0:
             ## Choose individualizing the lexicographically smallest
             (i, j) = sorted(B)[0]
@@ -135,6 +136,11 @@ def graph_canon(G):
         return tau
    
     def generate_tree(root):
+
+        """
+            Generates the search tree for the given root partition. Returns the global minimum partition
+            corresponding to the labelling of the graph G.
+        """
 
         def individualize(p, v):
             """Individualizes the node 'v' in partition 'p' such that if 'v' in V_i:
@@ -165,39 +171,83 @@ def graph_canon(G):
             return new_p
 
         def update_automorphisms(leaves, automorphisms):
-            
-            print(f"\t\t\t Updating automorphism list")
             new_labels = {}
+            ## number of laels/parts in each discrete partition
+            node_amt = G.number_of_nodes()
 
             ## permute G to the newly added leaf
             new_leaf = leaves[-1]
-            for i in range(len(new_leaf)):
+            for i in range(node_amt):
                 part = new_leaf[i]
-                new_labels[part[0]] = i
+                ## map node i to part[i] in the partition
+                new_labels[i] = part[0]
 
             leaf_graph = nx.relabel_nodes(G, new_labels)
             leaf_adj = nx.to_numpy_array(leaf_graph)
-            print(f"Newly added partition\t: {new_leaf}")
 
             ## permute G to all other leaves except the last (new) leaf
             for leaf in range(len(leaves) - 1):
                 comp_leaf = leaves[leaf]
                 
-                for i in range(len(comp_leaf)):
+                for i in range(node_amt):
                     part = comp_leaf[i]
                     ## In the partition, the node in part 'i' is mapped to node i.
                     new_labels[part[0]] = i
                 comp_graph = nx.relabel_nodes(G, new_labels)
                 comp_adj = nx.to_numpy_array(comp_graph)
 
+                ## partitions are isomorphic, compute automorphism between them
                 if np.array_equal(leaf_adj, comp_adj):
-                    print(f"Adjacency matrix is equal to\t: {comp_leaf}")
-                    ## NOTE: BEGIN FROM HERE TO COMPUTE AUTOMORPHISM. USE new_labels[i] = parts[0]
-                    ## TO COMPUTE THE INVERSE OF A LEAF.
-                    ## THEN DO "new_leaf^-1 * leaf" TO GET AUTOMORPHISM
+                    new_automorphism = {comp_leaf[i][0]: new_leaf[i][0] for i in range(node_amt)}
+                    automorphisms.append(new_automorphism)
 
+        def all_fixed(traverse_sequence, automorphism):
+                """
+                    Given a sequence of individualized nodes and an automorphism, returns true if all
+                    nodes in the sequence are mapped to themselves (fixed) in the automorphism. Otherwise,
+                    return false.
+                """
+                all_fixed = True
+                for node in traverse_sequence:
+                    if automorphism[node] != node: return False
 
-        def generate_subtree(parent_node, partition, current_seq, to_indiv, leaves, automorphisms):
+                return all_fixed
+
+        def calculate_orbit(children_list, automorphisms):
+            """
+                Calculates the orbits for each node child in the children list under closure of the automorphism,
+                thereby partitioning the children list, where each orbit is a part.
+
+                `Paramters`:
+
+                    children_list (list(int)): List of children to possibly travers
+
+                    automorphism (list( dict(int -> int) )): List of automorphisms represented as dictionaries (mapping one node to another)
+
+                `Returns`:
+                    all_orbits (list( list(int))): Partition of children_list corresponding to the orbits of the children.
+            """
+
+            all_orbits = []
+            
+            for child in children_list:
+                member_of_orbit = False
+                ## check for occurrence in other orbits. If so, no new orbit should be calculated.
+                for orbit in all_orbits:
+                    if child in orbit:
+                        member_of_orbit = True
+                        break
+                ## calculate non-orbitted child's orbit
+                if not member_of_orbit:
+                    ## orbit is a set, accounting for duplicates
+                    child_orbit = {child}
+                    for automorphism in automorphisms:
+                        child_orbit.add(automorphism[child])
+                    all_orbits.append(list(child_orbit))
+            
+            return all_orbits
+
+        def generate_subtree(parent_node, partition, current_seq, to_indiv, leaves, automorphisms, global_minimum):
             """
                 Subroutine to generate the rest of the tree spanning from this node
 
@@ -212,6 +262,7 @@ def graph_canon(G):
                     to_indiv (int): The element in the partition being individualized.
 
             """
+
             indiv_partition = individualize(partition, to_indiv)
             refinement = equitable_refinement(indiv_partition)
             
@@ -219,11 +270,10 @@ def graph_canon(G):
             if not current_seq:
                 new_sequence = [to_indiv]
             else:
-                new_sequence = copy.deepcopy(current_seq).append(to_indiv)
+                new_sequence = copy.deepcopy(current_seq)
+                new_sequence.append(to_indiv)
 
             this_node = TreeNode(refinement, parent_node, new_sequence)
-
-            ## Check for automorphism/node invariants -> if to be pruned, just return.
 
             ## Find first non-trivial part of the refined partition
             children_list = []
@@ -233,26 +283,54 @@ def graph_canon(G):
                     break
             ## If no choices available, this is a leaf node
             if len(children_list) == 0:
+                ## First encountered leaf is the global minimum
+                if not global_minimum[0]:
+                    global_minimum[0] = this_node.get_partition()
+                ## NOTE: Check if automorph with other children. If that's the case, do not append the child
                 leaves.append(this_node.get_partition())
                 update_automorphisms(leaves, automorphisms)
+                if this_node.get_partition() < global_minimum[0]:
+                    global_minimum[0] = this_node.get_partition()
                 ## Check for automorphism between other leaf partitions
             else:
                 this_node.set_children(children_list)
-                for child in children_list:
-                    ## NOTE: Check for pruning
-                    generate_subtree(this_node, refinement, new_sequence, child, leaves, automorphisms)
+                travers_seq = this_node.get_travers_seq()
 
-                                        ## ROOT
+                ## for each child visited, calculate new orbits and decide whether remaining children
+                ## should be visisted
+                for child in this_node.get_children():
+                    ## orbit containing this child
+                    A_prime = list(filter(lambda auto: all_fixed(travers_seq, auto), automorphisms))
+                    orbits = calculate_orbit(children_list, A_prime)
+                    ## Filter the partitioned children list to retrieve the child's orbit (list containing one orbit)
+                    child_orbit = list(filter(lambda orbit: child in orbit, orbits))[0]
+                    ## Only the first element of the orbit should be discovered. Since everything is lexicographically sorted, a child
+                    ## that appears late in an orbit should not be traversed.
+                    if child_orbit[0] == child: generate_subtree(this_node, refinement, new_sequence, child, leaves, automorphisms, global_minimum)
+
+                                        ## GENERATE TREE ROOT
+        
         ## list of automorphism 
         automorphisms = []
         ## list of leaf partitions
         leaves = []
+        ## the global minimum (lexicographically) partition
+        global_minimum = [[]]
 
         ## Generate the root node's canonical
         for child in root.get_children():
-            ## NOTE: Check for pruning here
-            generate_subtree(root, root.get_partition(), [], child, leaves, automorphisms)
+            ## NOTE: Check for pruning here using all automorphisms
+            orbits = calculate_orbit(root.get_children(), automorphisms)
+            child_orbit = list(filter(lambda orbit: child in orbit, orbits))[0]
+            if child_orbit[0] == child: generate_subtree(root, root.get_partition(), [], child, leaves, automorphisms, global_minimum)
 
+        print(f"Resulting leaves:")
+        for leaf in leaves: print(leaf)
+
+        return global_minimum[0]
+    
+    
+    ##                                  CANONICAL
     root_partition = [list(G.nodes)]
     init_refinement = equitable_refinement(root_partition)   
     root_node = TreeNode(init_refinement, None, [])
@@ -266,7 +344,8 @@ def graph_canon(G):
 
     root_node.set_children(children_list)
 
-    generate_tree(root_node)
+    minimum = generate_tree(root_node)
+    print(f"Global minimum: {minimum}")
 
     return None
 
@@ -276,8 +355,5 @@ if __name__ == "__main__":
     graph = nx.Graph()
     graph.add_nodes_from([i for i in range(9)])
     graph.add_edges_from([(0, 1), (0, 3), (1, 2), (1, 4), (2, 5), (3, 4), (3, 6), (4, 5), (4, 7), (5, 8), (6, 7), (7, 8)])
-
-    print("G's adjacency list")
-    print(nx.to_numpy_array(graph))
 
     graph_canon(graph)
