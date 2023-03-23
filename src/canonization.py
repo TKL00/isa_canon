@@ -2,7 +2,8 @@ import networkx as nx
 from TreeNode import TreeNode
 import copy
 import numpy as np
-from itertools import permutations 
+from itertools import permutations
+import time
 
 
 def permute_edges(mapping, edge_set):
@@ -208,11 +209,6 @@ def graph_canon(G):
 
                 ## NOTE: incorrect automorphism right now. Delete below appending.
                 new_automorphism = {best_partition[i][0]: new_leaf_partition[i][0] for i in range(G_NODE_AMT)}
-                print(f"New automorphism discovered between")
-                print(new_leaf_partition)
-                print(best_partition)
-                print("Automorphism")
-                print(new_automorphism_math)
                 automorphisms.append(new_automorphism_math)
 
         def all_fixed(traverse_sequence, automorphism):
@@ -243,24 +239,28 @@ def graph_canon(G):
             """
 
             all_orbits = []
-            
+
             for child in children_list:
-                member_of_orbit = False
-                ## check for occurrence in other orbits. If so, no new orbit should be calculated.
-                for orbit in all_orbits:
-                    if child in orbit:
-                        member_of_orbit = True
-                        break
-                ## calculate non-orbitted child's orbit
-                if not member_of_orbit:
-                    ## orbit is a set, accounting for duplicates
-                    child_orbit = {child}
-                    for automorphism in automorphisms:
-                        child_orbit.add(automorphism[child])
-                    ## Sort orbit as set-usage may interfere with ordering
-                    all_orbits.append(sorted(list(child_orbit)))
+                ## calculate the image of all children
+                child_orbit = {child}
+                for automorphism in automorphisms:
+                    child_image = automorphism[child]
+                    child_orbit.add(child_image)
+                
+                ## Sort orbit as set-usage may interfere with ordering
+                all_orbits.append(child_orbit)
             
-            return all_orbits
+            unified_orbits = []
+            ## Gather unions of orbits 
+            for i in range(len(all_orbits)):
+                unioned_orbit = all_orbits[i]
+                for j in range(i, len(all_orbits)):
+                    if all_orbits[i].intersection(all_orbits[j]):
+                        unioned_orbit = unioned_orbit.union(all_orbits[j])
+                        ## reset on update 
+                        j = i
+                unified_orbits.append(unioned_orbit)
+            return [sorted(list(orbit)) for orbit in unified_orbits]
 
         def generate_subtree(parent_node, partition, current_seq, to_indiv, automorphisms, global_minimum):
             """
@@ -321,8 +321,6 @@ def graph_canon(G):
                     global_minimum[1] = leaf_adj
                 
                 new_leaf_partition = this_node.get_partition()
-                print(f"\t \t \t Found leaf: {new_leaf_partition}")
-                print(f"\t \t \t Permuting edges to {relabeled_edges}")
                 ## Check if automorph with current best leaf. 
                 update_automorphisms(new_leaf_partition, leaf_adj, automorphisms)
                 
@@ -355,14 +353,10 @@ def graph_canon(G):
         global_minimum = [[], []]
 
         ## Generate the root node's canonical
-
-        print(f"Root children {root.get_children()}")
         for child in root.get_children():
             ## NOTE: Check for pruning here using all automorphisms
             orbits = calculate_orbit(root.get_children(), automorphisms)
-            print(f"All orbits: {orbits}")
             child_orbit = list(filter(lambda orbit: child in orbit, orbits))[0]
-            print(f"Orbits of {child}: {child_orbit}")
             if child_orbit[0] == child: generate_subtree(root, root.get_partition(), [], child, automorphisms, global_minimum)
 
         return global_minimum[0], automorphisms
@@ -371,7 +365,6 @@ def graph_canon(G):
     ##                                  CANONICAL
     root_partition = [sorted(list(G.nodes))]
     init_refinement = equitable_refinement(root_partition)
-    print(f"INIT REFINEMENT {init_refinement}")   
     root_node = TreeNode(init_refinement, None, [])
 
     ## Find first non-trivial part of the refined partition
@@ -384,7 +377,7 @@ def graph_canon(G):
     root_node.set_children(children_list)
 
     canonical_partition, automorphisms = generate_tree(root_node)
-    canonical_labeling = {i:canonical_partition[i][0] for i in range(G_NODE_AMT)}
+    canonical_labeling = {canonical_partition[i][0]:i for i in range(G_NODE_AMT)}
 
     return canonical_labeling, automorphisms
 
@@ -396,47 +389,42 @@ if __name__ == "__main__":
     graph.add_nodes_from([i for i in range(9)])
     graph.add_edges_from([(0, 1), (0, 3), (1, 2), (1, 4), (2, 5), (3, 4), (3, 6), (4, 5), (4, 7), (5, 8), (6, 7), (7, 8)])
 
-    print("FIRST RUN:")
     labeling, automorphisms = graph_canon(graph)
     new_edges = permute_edges(labeling, graph.edges)
-    print()
-    print()
 
+    start_time = time.time()
     
 
     canonical_graph = nx.Graph()
     canonical_graph.add_edges_from(new_edges)
+    canon_adj = create_adjacency(9, new_edges)
 
-    # all_mappings = []
-    # l = list(permutations(range(9)))
-    # for perm in l:
-    #     new_mapping = {}
-    #     for i in range(9):
-    #         new_mapping[i] = perm[i]
-    #     all_mappings.append(new_mapping)
+    all_mappings = []
+    l = list(permutations(range(9)))
+    for perm in l:
+        new_mapping = {}
+        for i in range(9):
+            new_mapping[i] = perm[i]
+        all_mappings.append(new_mapping)
 
-    # canon_adj = create_adjacency(9, new_edges)
-    # # print("Original canon adjacency:")
-    # # print(canon_adj)
+    iterator = 0
+    for mapping in all_mappings:
+        
+        if iterator % 50000 == 0:
+            print(f"Done with iteration {iterator} within {time.time() - start_time} seconds")
 
-    # iterator = 0
-    # for mapping in all_mappings:
-    #     print(f"RUN {iterator}")
-    #     print(f"Permutation: {mapping}")
-    #     new_edge_set = permute_edges(mapping, graph.edges)
-    #     relabeled_graph = nx.Graph()
-    #     relabeled_graph.add_edges_from(new_edge_set)
+        new_edge_set = permute_edges(mapping, graph.edges)
+        relabeled_graph = nx.Graph()
+        relabeled_graph.add_edges_from(new_edge_set)
 
-    #     new_labeling, new_automorphisms = graph_canon(relabeled_graph)
-    #     print(f"Resulting in labeling {new_labeling}")
+        new_labeling, new_automorphisms = graph_canon(relabeled_graph)
 
-    #     canonical_edge_set = permute_edges(new_labeling, relabeled_graph.edges)
-    #     new_canonical_adj = create_adjacency(9, canonical_edge_set)
+        canonical_edge_set = permute_edges(new_labeling, relabeled_graph.edges)
+        new_canonical_adj = create_adjacency(9, canonical_edge_set)
 
-    #     if not np.array_equal(canon_adj, new_canonical_adj):
-    #         print("Graphs inequal")
-    #         break
-    #     iterator += 1
+        if not np.array_equal(canon_adj, new_canonical_adj):
+            break
+        iterator += 1
 
 
 ## NOTE, ADJACENCY MATRIX DOES NOT SEEM TO BE UPDATED UPON RELABELLING
