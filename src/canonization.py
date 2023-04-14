@@ -21,7 +21,6 @@ def create_adjacency(number_of_nodes, edge_set):
         adj[u][v] = adj[v][u] = 1
     return adj
 
-
 def graph_canon(G):
     """
         Produces the canonical labeling of the Graph G using the Graph Canonicalization 
@@ -201,14 +200,15 @@ def graph_canon(G):
         def update_automorphisms(new_leaf_partition, new_leaf_adj, automorphisms):            
             ## If partitions are isomorphic, compute automorphism between them
             if np.array_equal(new_leaf_adj, global_minimum[1]):
+                print("New automorphism discovered")
                 best_partition = global_minimum[0]
                 ## pi_one goes from the canonical labelling to the input graph, the inverse should go from the input graph to the canonical labelling
+                ## partition[i][0] = j --> whatever node at position "i" in the partition 
+                ## corresponds to a node in the original graph and is mapped to node (color) 'j' in canonical graph
                 pi_one_inverse = {new_leaf_partition[i][0]: i for i in range(G_NODE_AMT)}
                 pi_two = {i: best_partition[i][0] for i in range(G_NODE_AMT)}
                 new_automorphism_math = {i: pi_two[pi_one_inverse[i]] for i in range(G_NODE_AMT)}
 
-                ## NOTE: incorrect automorphism right now. Delete below appending.
-                new_automorphism = {best_partition[i][0]: new_leaf_partition[i][0] for i in range(G_NODE_AMT)}
                 automorphisms.append(new_automorphism_math)
 
         def all_fixed(traverse_sequence, automorphism):
@@ -240,8 +240,8 @@ def graph_canon(G):
 
             all_orbits = []
 
+            ## calculate the image of all children
             for child in children_list:
-                ## calculate the image of all children
                 child_orbit = {child}
                 for automorphism in automorphisms:
                     child_image = automorphism[child]
@@ -255,6 +255,7 @@ def graph_canon(G):
             for i in range(len(all_orbits)):
                 unioned_orbit = all_orbits[i]
                 for j in range(i, len(all_orbits)):
+                    ## If two orbit sets share a value, they can be intersected
                     if all_orbits[i].intersection(all_orbits[j]):
                         unioned_orbit = unioned_orbit.union(all_orbits[j])
                         ## reset on update 
@@ -288,6 +289,7 @@ def graph_canon(G):
                 return False
 
             indiv_partition = individualize(partition, to_indiv)
+            
             refinement = equitable_refinement(indiv_partition)
             
             ## If parent is root node, the current_seq is empty and will only contain this individualized node
@@ -308,6 +310,7 @@ def graph_canon(G):
                     break
             ## If no choices available, this is a leaf node
             if len(children_list) == 0:
+                print("in leaf")
                 
                 ## create mapping from current discrete partition. Note that partition[i] says that the node (= partition[i]) of the input graph 
                 ## goes to color "i" i.e. node "i" in the canonical labelling.
@@ -368,11 +371,15 @@ def graph_canon(G):
     root_node = TreeNode(init_refinement, None, [])
 
     ## Find first non-trivial part of the refined partition
+    ## NOTE: Input parameter-based target cell selector function here instead.
     children_list = []
     for i in range(len(init_refinement)):
         if len(init_refinement[i]) != 1:
             children_list = copy.deepcopy(init_refinement[i])
             break
+    
+    if not children_list:
+        return {init_refinement[i][0]:i for i in range(G_NODE_AMT)}, []
 
     root_node.set_children(children_list)
 
@@ -380,6 +387,28 @@ def graph_canon(G):
     canonical_labeling = {canonical_partition[i][0]:i for i in range(G_NODE_AMT)}
 
     return canonical_labeling, automorphisms
+
+def test_canon(G):
+    n_nodes = len(G.nodes)
+    perm = np.random.permutation(n_nodes)
+    perm_mapping = {i: perm[i] for i in range(n_nodes)}
+    perm_edges = permute_edges(perm_mapping, G.edges)
+    perm_G = nx.Graph()
+    perm_G.add_edges_from(perm_edges)
+
+    print("canon on g")
+    labeling_1, automorphisms_1 = graph_canon(G)
+    print("canon on permutation")
+    labeling_2, automorphisms_2 = graph_canon(perm_G)
+
+    G_canon_edge = permute_edges(labeling_1, G.edges)
+    perm_G_canon_edge = permute_edges(labeling_2, perm_G.edges)
+    
+    G_canon_adj = create_adjacency(n_nodes, G_canon_edge)
+    perm_G_canon_adj = create_adjacency(n_nodes, perm_G_canon_edge)
+
+    return np.array_equal(G_canon_adj, perm_G_canon_adj)
+    
 
 
 
@@ -389,42 +418,47 @@ if __name__ == "__main__":
     graph.add_nodes_from([i for i in range(9)])
     graph.add_edges_from([(0, 1), (0, 3), (1, 2), (1, 4), (2, 5), (3, 4), (3, 6), (4, 5), (4, 7), (5, 8), (6, 7), (7, 8)])
 
-    labeling, automorphisms = graph_canon(graph)
-    new_edges = permute_edges(labeling, graph.edges)
+    # labeling, automorphisms = graph_canon(graph)
+    # new_edges = permute_edges(labeling, graph.edges)
 
-    start_time = time.time()
+    # start_time = time.time()
     
 
-    canonical_graph = nx.Graph()
-    canonical_graph.add_edges_from(new_edges)
-    canon_adj = create_adjacency(9, new_edges)
+    # canonical_graph = nx.Graph()
+    # canonical_graph.add_edges_from(new_edges)
+    # canon_adj = create_adjacency(9, new_edges)
 
-    all_mappings = []
-    l = list(permutations(range(9)))
-    for perm in l:
-        new_mapping = {}
-        for i in range(9):
-            new_mapping[i] = perm[i]
-        all_mappings.append(new_mapping)
+    # all_mappings = []
+    # l = list(permutations(range(9)))
+    # for perm in l:
+    #     new_mapping = {}
+    #     for i in range(9):
+    #         new_mapping[i] = perm[i]
+    #     all_mappings.append(new_mapping)
 
-    iterator = 0
-    for mapping in all_mappings:
+    # iterator = 0
+    # for mapping in all_mappings:
         
-        if iterator % 50000 == 0:
-            print(f"Done with iteration {iterator} within {time.time() - start_time} seconds")
+    #     if iterator % 50000 == 0:
+    #         print(f"Done with iteration {iterator} within {time.time() - start_time} seconds")
 
-        new_edge_set = permute_edges(mapping, graph.edges)
-        relabeled_graph = nx.Graph()
-        relabeled_graph.add_edges_from(new_edge_set)
+    #     new_edge_set = permute_edges(mapping, graph.edges)
+    #     relabeled_graph = nx.Graph()
+    #     relabeled_graph.add_edges_from(new_edge_set)
 
-        new_labeling, new_automorphisms = graph_canon(relabeled_graph)
+    #     new_labeling, new_automorphisms = graph_canon(relabeled_graph)
 
-        canonical_edge_set = permute_edges(new_labeling, relabeled_graph.edges)
-        new_canonical_adj = create_adjacency(9, canonical_edge_set)
+    #     canonical_edge_set = permute_edges(new_labeling, relabeled_graph.edges)
+    #     new_canonical_adj = create_adjacency(9, canonical_edge_set)
 
-        if not np.array_equal(canon_adj, new_canonical_adj):
-            break
-        iterator += 1
+    #     if not np.array_equal(canon_adj, new_canonical_adj):
+    #         break
+    #     iterator += 1
+
+    for i in range(100):
+        g = nx.dense_gnm_random_graph(100, 750)
+
+        print(test_canon(g))
 
 
 ## NOTE, ADJACENCY MATRIX DOES NOT SEEM TO BE UPDATED UPON RELABELLING
