@@ -21,13 +21,15 @@ def create_adjacency(number_of_nodes, edge_set):
         adj[u][v] = adj[v][u] = 1
     return adj
 
-def graph_canon(G):
+def graph_canon(G, Q):
     """
         Produces the canonical labeling of the Graph G using the Graph Canonicalization 
         algorithm suggested by Brendan McKay.
 
         `Paramters`:
             G (Graph): NetworkX Graph
+            Q (function ( list( list(int) ) ) -> list): The target cell selector that, given a non-discrete partition, 
+                                                        returns a reference to a non-trivial part in the partition.
 
         `Returns`:
             Canonical_labeling (dict: node -> node): Relabeling mapping representing G in its canonical representation
@@ -200,7 +202,6 @@ def graph_canon(G):
         def update_automorphisms(new_leaf_partition, new_leaf_adj, automorphisms):            
             ## If partitions are isomorphic, compute automorphism between them
             if np.array_equal(new_leaf_adj, global_minimum[1]):
-                print("New automorphism discovered")
                 best_partition = global_minimum[0]
                 ## pi_one goes from the canonical labelling to the input graph, the inverse should go from the input graph to the canonical labelling
                 ## partition[i][0] = j --> whatever node at position "i" in the partition 
@@ -223,14 +224,14 @@ def graph_canon(G):
 
                 return all_fixed
 
-        def calculate_orbit(children_list, automorphisms):
+        def calculate_orbit(child, automorphisms):
             """
                 Calculates the orbits for each node child in the children list under closure of the automorphism,
                 thereby partitioning the children list, where each orbit is a part.
 
                 `Paramters`:
 
-                    children_list (list(int)): List of children to possibly travers
+                    children ((int)): The child to calculate the orbit of
 
                     automorphism (list( dict(int -> int) )): List of automorphisms represented as dictionaries (mapping one node to another)
 
@@ -238,30 +239,23 @@ def graph_canon(G):
                     all_orbits (list( list(int))): Partition of children_list corresponding to the orbits of the children.
             """
 
-            all_orbits = []
-
-            ## calculate the image of all children
-            for child in children_list:
-                child_orbit = {child}
-                for automorphism in automorphisms:
-                    child_image = automorphism[child]
-                    child_orbit.add(child_image)
-                
-                ## Sort orbit as set-usage may interfere with ordering
-                all_orbits.append(child_orbit)
             
-            unified_orbits = []
-            ## Gather unions of orbits 
-            for i in range(len(all_orbits)):
-                unioned_orbit = all_orbits[i]
-                for j in range(i, len(all_orbits)):
-                    ## If two orbit sets share a value, they can be intersected
-                    if all_orbits[i].intersection(all_orbits[j]):
-                        unioned_orbit = unioned_orbit.union(all_orbits[j])
-                        ## reset on update 
-                        j = i
-                unified_orbits.append(unioned_orbit)
-            return [sorted(list(orbit)) for orbit in unified_orbits]
+            L_i = set([child])
+            found_members = set([child])
+
+            ## as long as new members of orbits are encountered, we continue
+            while L_i:
+                L_i_s = set([])
+                for vals in L_i:
+                    for automorphism in automorphisms:
+                        L_i_s.add(automorphism[vals])
+                L_j = L_i_s - found_members
+                for new_discovery in L_j:
+                    found_members.add(new_discovery)
+                
+                L_i = L_j
+            
+            return sorted(list(found_members))
 
         def generate_subtree(parent_node, partition, current_seq, to_indiv, automorphisms, global_minimum):
             """
@@ -303,14 +297,10 @@ def graph_canon(G):
 
             ## Find first non-trivial part of the refined partition
             ## NOTE: Input parameter-based target cell selector function here instead.
-            children_list = []
-            for i in range(len(refinement)):
-                if len(refinement[i]) != 1:
-                    children_list = copy.deepcopy(refinement[i])
-                    break
+            children_list = copy.deepcopy(Q(refinement))
+
             ## If no choices available, this is a leaf node
             if len(children_list) == 0:
-                print("in leaf")
                 
                 ## create mapping from current discrete partition. Note that partition[i] says that the node (= partition[i]) of the input graph 
                 ## goes to color "i" i.e. node "i" in the canonical labelling.
@@ -341,12 +331,10 @@ def graph_canon(G):
                 for child in this_node.get_children():
                     ## orbit containing this child
                     A_prime = list(filter(lambda auto: all_fixed(travers_seq, auto), automorphisms))
-                    orbits = calculate_orbit(children_list, A_prime)
-                    ## Filter the partitioned children list to retrieve the child's orbit (list containing one orbit)
-                    child_orbit = list(filter(lambda orbit: child in orbit, orbits))[0]
+                    orbit = calculate_orbit(child, A_prime)
                     ## Only the first element of the orbit should be discovered. Since everything is lexicographically sorted, a child
                     ## that appears late in an orbit should not be traversed.
-                    if child_orbit[0] == child: generate_subtree(this_node, refinement, new_sequence, child, automorphisms, global_minimum)
+                    if orbit[0] == child: generate_subtree(this_node, refinement, new_sequence, child, automorphisms, global_minimum)
 
                                              ## GENERATE TREE ROOT
         
@@ -357,10 +345,12 @@ def graph_canon(G):
 
         ## Generate the root node's canonical
         for child in root.get_children():
-            ## NOTE: Check for pruning here using all automorphisms
-            orbits = calculate_orbit(root.get_children(), automorphisms)
-            child_orbit = list(filter(lambda orbit: child in orbit, orbits))[0]
-            if child_orbit[0] == child: generate_subtree(root, root.get_partition(), [], child, automorphisms, global_minimum)
+            orbit = calculate_orbit(child, automorphisms)
+            
+            print(f"root orbit length for child {child}: {len(orbit)} with {len(automorphisms)} automorphism")
+            if orbit[0] == child: generate_subtree(root, root.get_partition(), [], child, automorphisms, global_minimum)
+            else:
+                print("skip")
 
         return global_minimum[0], automorphisms
     
@@ -372,11 +362,7 @@ def graph_canon(G):
 
     ## Find first non-trivial part of the refined partition
     ## NOTE: Input parameter-based target cell selector function here instead.
-    children_list = []
-    for i in range(len(init_refinement)):
-        if len(init_refinement[i]) != 1:
-            children_list = copy.deepcopy(init_refinement[i])
-            break
+    children_list = copy.deepcopy(Q(init_refinement))
     
     if not children_list:
         return {init_refinement[i][0]:i for i in range(G_NODE_AMT)}, []
@@ -388,7 +374,7 @@ def graph_canon(G):
 
     return canonical_labeling, automorphisms
 
-def test_canon(G):
+def test_canon(G, Q):
     """
         Runs the graph_canon function on G and checks whether it correctly computes the 
         canonical form of G.
@@ -402,8 +388,8 @@ def test_canon(G):
     perm_G.add_nodes_from(G.nodes)
     perm_G.add_edges_from(perm_edges)
 
-    labeling_1, automorphisms_1 = graph_canon(G)
-    labeling_2, automorphisms_2 = graph_canon(perm_G)
+    labeling_1, automorphisms_1 = graph_canon(G, Q)
+    labeling_2, automorphisms_2 = graph_canon(perm_G, Q)
 
     G_canon_edge = permute_edges(labeling_1, G.edges)
     perm_G_canon_edge = permute_edges(labeling_2, perm_G.edges)
@@ -414,6 +400,17 @@ def test_canon(G):
     return np.array_equal(G_canon_adj, perm_G_canon_adj)
     
 
+def first_non_trivial(partition):
+    for part in partition:
+        if len(part) != 1:
+            return part
+    return []
+
+def rightmost_first_non_trivial(partition):
+    for part in reversed(partition):
+        if len(part) != 1:
+            return part
+    return []
 
 
 if __name__ == "__main__":
@@ -425,11 +422,8 @@ if __name__ == "__main__":
     for i in range(100):
         g = nx.dense_gnm_random_graph(220, 750)
 
-        res = test_canon(g)
+        res = test_canon(g, first_non_trivial)
         if not res:
             break
         else:
             print(res)
-
-
-## NOTE, ADJACENCY MATRIX DOES NOT SEEM TO BE UPDATED UPON RELABELLING
