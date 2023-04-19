@@ -389,16 +389,20 @@ def graph_canon(G):
     return canonical_labeling, automorphisms
 
 def test_canon(G):
+    """
+        Runs the graph_canon function on G and checks whether it correctly computes the 
+        canonical form of G.
+    """
+
     n_nodes = len(G.nodes)
     perm = np.random.permutation(n_nodes)
     perm_mapping = {i: perm[i] for i in range(n_nodes)}
     perm_edges = permute_edges(perm_mapping, G.edges)
     perm_G = nx.Graph()
+    perm_G.add_nodes_from(G.nodes)
     perm_G.add_edges_from(perm_edges)
 
-    print("canon on g")
     labeling_1, automorphisms_1 = graph_canon(G)
-    print("canon on permutation")
     labeling_2, automorphisms_2 = graph_canon(perm_G)
 
     G_canon_edge = permute_edges(labeling_1, G.edges)
@@ -418,47 +422,14 @@ if __name__ == "__main__":
     graph.add_nodes_from([i for i in range(9)])
     graph.add_edges_from([(0, 1), (0, 3), (1, 2), (1, 4), (2, 5), (3, 4), (3, 6), (4, 5), (4, 7), (5, 8), (6, 7), (7, 8)])
 
-    # labeling, automorphisms = graph_canon(graph)
-    # new_edges = permute_edges(labeling, graph.edges)
-
-    # start_time = time.time()
-    
-
-    # canonical_graph = nx.Graph()
-    # canonical_graph.add_edges_from(new_edges)
-    # canon_adj = create_adjacency(9, new_edges)
-
-    # all_mappings = []
-    # l = list(permutations(range(9)))
-    # for perm in l:
-    #     new_mapping = {}
-    #     for i in range(9):
-    #         new_mapping[i] = perm[i]
-    #     all_mappings.append(new_mapping)
-
-    # iterator = 0
-    # for mapping in all_mappings:
-        
-    #     if iterator % 50000 == 0:
-    #         print(f"Done with iteration {iterator} within {time.time() - start_time} seconds")
-
-    #     new_edge_set = permute_edges(mapping, graph.edges)
-    #     relabeled_graph = nx.Graph()
-    #     relabeled_graph.add_edges_from(new_edge_set)
-
-    #     new_labeling, new_automorphisms = graph_canon(relabeled_graph)
-
-    #     canonical_edge_set = permute_edges(new_labeling, relabeled_graph.edges)
-    #     new_canonical_adj = create_adjacency(9, canonical_edge_set)
-
-    #     if not np.array_equal(canon_adj, new_canonical_adj):
-    #         break
-    #     iterator += 1
-
     for i in range(100):
-        g = nx.dense_gnm_random_graph(100, 750)
+        g = nx.dense_gnm_random_graph(220, 750)
 
-        print(test_canon(g))
+        res = test_canon(g)
+        if not res:
+            break
+        else:
+            print(res)
 
 
 ## NOTE, ADJACENCY MATRIX DOES NOT SEEM TO BE UPDATED UPON RELABELLING
