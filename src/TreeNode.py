@@ -17,12 +17,13 @@ class TreeNode:
                 travers_seq (list(TreeNode)): A list of nodes such that travers_seq[i] was the i'th individualized node
 
                 children (list(TreeNode)): A list of possible branches to make depending on choices of individualization
+
         """
         self._partition = partition
         self._parent = parent
         self._travers_seq = travers_seq
         self._children = []
-        self._trace = ""
+        self._trace = []
     
     def get_partition(self):
         return self._partition
@@ -44,6 +45,9 @@ class TreeNode:
     
     def set_children(self, c):
         self._children = c
+    
+    def set_partition(self, p):
+        self._partition = p
     
 
     
