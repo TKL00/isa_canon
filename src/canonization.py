@@ -347,10 +347,7 @@ def graph_canon(G, Q):
         for child in root.get_children():
             orbit = calculate_orbit(child, automorphisms)
             
-            print(f"root orbit length for child {child}: {len(orbit)} with {len(automorphisms)} automorphism")
             if orbit[0] == child: generate_subtree(root, root.get_partition(), [], child, automorphisms, global_minimum)
-            else:
-                print("skip")
 
         return global_minimum[0], automorphisms
     
