@@ -21,7 +21,7 @@ def create_adjacency(number_of_nodes, edge_set):
         adj[u][v] = adj[v][u] = 1
     return adj
 
-def graph_canon(G, Q):
+def graph_canon(G, Q, traces=False):
     """
         Produces the canonical labeling of the Graph G using the Graph Canonicalization 
         algorithm suggested by Brendan McKay.
@@ -30,6 +30,7 @@ def graph_canon(G, Q):
             G (Graph): NetworkX Graph
             Q (function ( list( list(int) ) ) -> list): The target cell selector that, given a non-discrete partition, 
                                                         returns a reference to a non-trivial part in the partition.
+            traces (bool): Declares whether the node invariant on cell spilt positions should be used.
 
         `Returns`:
             Canonical_labeling (dict: node -> node): Relabeling mapping representing G in its canonical representation
@@ -37,8 +38,17 @@ def graph_canon(G, Q):
     """
 
     G_NODE_AMT = len(G.nodes)
+
+    ## list of automorphism (dicts)
+    automorphisms = []
+    ## the global minimum consist of 1) a partition and 2) the resulting adjacency matrix when permuting G.
+    global_invariants = {
+        "least_partition": [],
+        "least_adjacency": [],
+        "max_trace": ""
+    }
     
-    def equitable_refinement(p):
+    def equitable_refinement(p, global_invariants={}, current_trace=""):
         """
             Produces an equitable ordered partition based on the input partition 'p' of the graph 'G'
             using the algorithm suggested by Brendan McKay.
@@ -139,12 +149,15 @@ def graph_canon(G, Q):
             
             ## Replace partition V_i in 'partition' with all partitions in 'shatter_partitions'
             return_partition = []
+            split_position = 0
             for i in range(len(p)):
                 if i != to_shatter:
                     return_partition.append(p[i])
+                    split_position += len(p[i])
                 else:
                     for j in range(len(shatter_partitions)):
                         return_partition.append(shatter_partitions[j])
+                        split_position += len(shatter_partitions[j])
             
             return return_partition
 
@@ -170,15 +183,6 @@ def graph_canon(G, Q):
             Generates the search tree for the given root partition. Returns the global minimum partition
             corresponding to the labeling of the graph G.
         """
-
-        ## list of automorphism (dicts)
-        automorphisms = []
-        ## the global minimum consist of 1) a partition and 2) the resulting adjacency matrix when permuting G.
-        global_invariants = {
-            "least_partition": [],
-            "least_adjacency": [],
-            "max_trace": ""
-        }
 
         def individualize(p, v):
             """Individualizes the node 'v' in partition 'p' such that if 'v' in V_i:
@@ -208,7 +212,7 @@ def graph_canon(G, Q):
             
             return new_p
 
-        def update_automorphisms(new_leaf_partition, new_leaf_adj, automorphisms):            
+        def update_automorphisms(new_leaf_partition, new_leaf_adj):            
             ## If partitions are isomorphic, compute automorphism between them
             if np.array_equal(new_leaf_adj, global_invariants["least_adjacency"]):
                 best_partition = global_invariants["least_partition"]
@@ -233,7 +237,7 @@ def graph_canon(G, Q):
 
                 return all_fixed
 
-        def calculate_orbit(child, automorphisms):
+        def calculate_orbit(child, fixed_automorphisms):
             """
                 Calculates the orbits for each node child in the children list under closure of the automorphism,
                 thereby partitioning the children list, where each orbit is a part.
@@ -256,7 +260,7 @@ def graph_canon(G, Q):
             while L_i:
                 L_i_s = set([])
                 for vals in L_i:
-                    for automorphism in automorphisms:
+                    for automorphism in fixed_automorphisms:
                         L_i_s.add(automorphism[vals])
                 L_j = L_i_s - found_members
                 for new_discovery in L_j:
@@ -266,7 +270,7 @@ def graph_canon(G, Q):
             
             return sorted(list(found_members))
 
-        def generate_subtree(parent_node, partition, current_seq, to_indiv, automorphisms):
+        def generate_subtree(parent_node, partition, current_seq, to_indiv):
             """
                 Subroutine to generate the rest of the tree spanning from this node
 
@@ -324,7 +328,7 @@ def graph_canon(G, Q):
                 
                 new_leaf_partition = this_node.get_partition()
                 ## Check if automorph with current best leaf. 
-                update_automorphisms(new_leaf_partition, leaf_adj, automorphisms)
+                update_automorphisms(new_leaf_partition, leaf_adj)
                 
                 ## Check if current relabeling is better than previous relabeling. Resulting array contains true if one elemen
                 if array_less_than(leaf_adj, global_invariants["least_partition"]):
@@ -343,7 +347,7 @@ def graph_canon(G, Q):
                     orbit = calculate_orbit(child, A_prime)
                     ## Only the first element of the orbit should be discovered. Since everything is lexicographically sorted, a child
                     ## that appears late in an orbit should not be traversed.
-                    if orbit[0] == child: generate_subtree(this_node, refinement, new_sequence, child, automorphisms)
+                    if orbit[0] == child: generate_subtree(this_node, refinement, new_sequence, child)
 
                                              ## GENERATE TREE ROOT  
 
@@ -351,9 +355,9 @@ def graph_canon(G, Q):
         for child in root.get_children():
             orbit = calculate_orbit(child, automorphisms)
             
-            if orbit[0] == child: generate_subtree(root, root.get_partition(), [], child, automorphisms)
+            if orbit[0] == child: generate_subtree(root, root.get_partition(), [], child)
 
-        return global_invariants["least_partition"], automorphisms
+        return
     
     
     ##                                  CANONICAL
@@ -370,7 +374,9 @@ def graph_canon(G, Q):
 
     root_node.set_children(children_list)
 
-    canonical_partition, automorphisms = generate_tree(root_node)
+    ## generate_tree has side effects on the global invariants dict
+    generate_tree(root_node)
+    canonical_partition= global_invariants["least_partition"]
     canonical_labeling = {canonical_partition[i][0]:i for i in range(G_NODE_AMT)}
 
     return canonical_labeling, automorphisms
@@ -390,7 +396,9 @@ def test_canon(G, Q):
     perm_G.add_edges_from(perm_edges)
 
     labeling_1, automorphisms_1 = graph_canon(G, Q)
+    print(f"len of automorphisms {len(automorphisms_1)}")
     labeling_2, automorphisms_2 = graph_canon(perm_G, Q)
+    print(f"len of automorphisms {len(automorphisms_2)}")
 
     G_canon_edge = permute_edges(labeling_1, G.edges)
     perm_G_canon_edge = permute_edges(labeling_2, perm_G.edges)
