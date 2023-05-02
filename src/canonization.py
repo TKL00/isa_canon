@@ -171,6 +171,15 @@ def graph_canon(G, Q):
             corresponding to the labeling of the graph G.
         """
 
+        ## list of automorphism (dicts)
+        automorphisms = []
+        ## the global minimum consist of 1) a partition and 2) the resulting adjacency matrix when permuting G.
+        global_invariants = {
+            "least_partition": [],
+            "least_adjacency": [],
+            "max_trace": ""
+        }
+
         def individualize(p, v):
             """Individualizes the node 'v' in partition 'p' such that if 'v' in V_i:
             
@@ -201,8 +210,8 @@ def graph_canon(G, Q):
 
         def update_automorphisms(new_leaf_partition, new_leaf_adj, automorphisms):            
             ## If partitions are isomorphic, compute automorphism between them
-            if np.array_equal(new_leaf_adj, global_minimum[1]):
-                best_partition = global_minimum[0]
+            if np.array_equal(new_leaf_adj, global_invariants["least_adjacency"]):
+                best_partition = global_invariants["least_partition"]
                 ## pi_one goes from the canonical labelling to the input graph, the inverse should go from the input graph to the canonical labelling
                 ## partition[i][0] = j --> whatever node at position "i" in the partition 
                 ## corresponds to a node in the original graph and is mapped to node (color) 'j' in canonical graph
@@ -257,7 +266,7 @@ def graph_canon(G, Q):
             
             return sorted(list(found_members))
 
-        def generate_subtree(parent_node, partition, current_seq, to_indiv, automorphisms, global_minimum):
+        def generate_subtree(parent_node, partition, current_seq, to_indiv, automorphisms):
             """
                 Subroutine to generate the rest of the tree spanning from this node
 
@@ -309,18 +318,18 @@ def graph_canon(G, Q):
                 leaf_adj = create_adjacency(G_NODE_AMT, relabeled_edges)
 
                 ## First encountered leaf is the global minimum
-                if not global_minimum[0]:
-                    global_minimum[0] = this_node.get_partition()
-                    global_minimum[1] = leaf_adj
+                if not global_invariants["least_partition"]:
+                    global_invariants["least_partition"] = this_node.get_partition()
+                    global_invariants["least_adjacency"] = leaf_adj
                 
                 new_leaf_partition = this_node.get_partition()
                 ## Check if automorph with current best leaf. 
                 update_automorphisms(new_leaf_partition, leaf_adj, automorphisms)
                 
                 ## Check if current relabeling is better than previous relabeling. Resulting array contains true if one elemen
-                if array_less_than(leaf_adj, global_minimum[1]):
-                    global_minimum[0] = this_node.get_partition()
-                    global_minimum[1] = leaf_adj
+                if array_less_than(leaf_adj, global_invariants["least_partition"]):
+                    global_invariants["least_partition"] = this_node.get_partition()
+                    global_invariants["least_adjacency"] = leaf_adj
                 ## Check for automorphism between other leaf partitions
             else:
                 this_node.set_children(children_list)
@@ -334,22 +343,17 @@ def graph_canon(G, Q):
                     orbit = calculate_orbit(child, A_prime)
                     ## Only the first element of the orbit should be discovered. Since everything is lexicographically sorted, a child
                     ## that appears late in an orbit should not be traversed.
-                    if orbit[0] == child: generate_subtree(this_node, refinement, new_sequence, child, automorphisms, global_minimum)
+                    if orbit[0] == child: generate_subtree(this_node, refinement, new_sequence, child, automorphisms)
 
-                                             ## GENERATE TREE ROOT
-        
-        ## list of automorphism (dicts)
-        automorphisms = []
-        ## the global minimum consist of 1) a partition and 2) the resulting adjacency matrix when permuting G.
-        global_minimum = [[], []]
+                                             ## GENERATE TREE ROOT  
 
         ## Generate the root node's canonical
         for child in root.get_children():
             orbit = calculate_orbit(child, automorphisms)
             
-            if orbit[0] == child: generate_subtree(root, root.get_partition(), [], child, automorphisms, global_minimum)
+            if orbit[0] == child: generate_subtree(root, root.get_partition(), [], child, automorphisms)
 
-        return global_minimum[0], automorphisms
+        return global_invariants["least_partition"], automorphisms
     
     
     ##                                  CANONICAL
