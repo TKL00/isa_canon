@@ -22,6 +22,7 @@ class TreeNode:
         self._parent = parent
         self._travers_seq = travers_seq
         self._children = []
+        self._trace = ""
     
     def get_partition(self):
         return self._partition
@@ -34,6 +35,12 @@ class TreeNode:
     
     def get_children(self):
         return self._children
+    
+    def get_trace(self):
+        return self._trace
+    
+    def set_trace(self, t):
+        self._trace = t
     
     def set_children(self, c):
         self._children = c
