@@ -327,7 +327,7 @@ def graph_canon(G, Q):
                 update_automorphisms(new_leaf_partition, leaf_adj, automorphisms)
                 
                 ## Check if current relabeling is better than previous relabeling. Resulting array contains true if one elemen
-                if array_less_than(leaf_adj, global_invariants["least_partition"]):
+                if array_less_than(leaf_adj, global_invariants["least_adjacency"]):
                     global_invariants["least_partition"] = this_node.get_partition()
                     global_invariants["least_adjacency"] = leaf_adj
                 ## Check for automorphism between other leaf partitions
