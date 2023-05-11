@@ -45,8 +45,30 @@ def graph_canon(G, Q, traces=False):
     global_invariants = {
         "least_partition": [],
         "least_adjacency": [],
-        "max_trace": []
+        "max_trace": [[]]
     }
+
+    def less_than_max(current_trace):
+
+            max_trace = global_invariants["max_trace"]
+            
+            ## Determine what level the current trace is at in the search tree
+            tree_depth = min(len(max_trace), len(current_trace))
+            
+            ## Gets the specific trace introduced at that level in the max trace,
+            ## and in the current level in the current trace
+            node_max_trace = max_trace[tree_depth - 1]
+            node_current_trace = current_trace[-1]
+            
+            ## Determine how many elements should be compared
+            prefix_length = min(len(node_max_trace), len(node_current_trace))
+
+            ## Slicing of the nodes
+
+            compare_num_max_trace = node_max_trace[0:prefix_length]
+            compare_num_current_trace = node_current_trace[0:prefix_length]
+
+            return compare_num_current_trace < compare_num_max_trace 
     
     def equitable_refinement(p, v):
         """
@@ -100,7 +122,8 @@ def graph_canon(G, Q, traces=False):
                                 ## Ignore rest of nodes in V_j and continue to V_(j+1) if one exists
                                 break
             return B
-        
+
+
         def shatter_partition(p, adj, to_shatter, shatter_with):
             """
                 Computes a new partition from 'p' resulting from shattering the 
@@ -154,49 +177,23 @@ def graph_canon(G, Q, traces=False):
 
             ## When using traces, we add the trace of this shatter to the node's current trace
             if(traces):
-                current_trace = v.get_trace()
                 split_position = 0
-                for i in range(len(p)):
-                    if i != to_shatter:
-                        return_partition.append(p[i])
-                        ## Don't count positions after the shattered set
-                        if i < to_shatter: split_position += len(p[i])
-                    else:
-                        n_partitions = len(shatter_partitions)
-                        for j in range(n_partitions):
-                            return_partition.append(shatter_partitions[j])
-                            if j < n_partitions - 1:
-                                split_position += len(shatter_partitions[j])
-                current_trace.append(split_position)
-                v.set_trace(current_trace)
+                for i in range(to_shatter):
+                    split_position += len(p[i])
+                for i in range(len(shatter_partitions) -1):
+                    split_position += len(shatter_partitions[i])
+                    v.get_trace()[-1].append(split_position)
+                                                       
             ## Simply replacing the partition V_i with the partitions in shatter_partition
-            else:
-                for i in range(len(p)):
-                    if i != to_shatter:
-                        return_partition.append(p[i])
-                    else:
-                        for j in range(len(shatter_partitions)):
-                            return_partition.append(shatter_partitions[j])
+            for i in range(len(p)):
+                if i != to_shatter:
+                    return_partition.append(p[i])
+                else:
+                    for j in range(len(shatter_partitions)):
+                        return_partition.append(shatter_partitions[j])
             
             return return_partition
-        
-        def trace_less_than():
-            """
-                Compares the current trace to the global max trace.
-                If the prefix of the current trace is less than the prefix
-                of the global max trace it returns true.
-                Only continue with branches that have an equal or better trace than global trace.
-            """
-            current_trace = v.get_trace()
-            ## perhaps better suited in a function for use in the shatter loop as well
-            max_trace = global_invariants["max_trace"]
-            ## Determining the length of the prefix
-            min_trace_length = min(len(current_trace), len(max_trace))
 
-            prefix_max_trace = max_trace[0:min_trace_length]
-            prefix_current_trace = current_trace[0:min_trace_length]
-            if(prefix_current_trace < prefix_max_trace):
-                return True
 
         adj_matrix = create_adjacency(G_NODE_AMT, G.edges)
 
@@ -206,7 +203,7 @@ def graph_canon(G, Q, traces=False):
 
         ## NOTE: Abort refinement if current partition is lexicographically smaller than the global minimum
         while len(B) != 0:
-            if traces and trace_less_than():
+            if traces and less_than_max(v.get_trace()):
                 print("Skipped branch due to trace")
                 return False
 
@@ -215,7 +212,7 @@ def graph_canon(G, Q, traces=False):
             tau = shatter_partition(tau, adj_matrix, i, j)
             ## Update B to see if partitions remains to be shattered
             B = shatter_set(tau, adj_matrix)
-
+        
         return tau
    
     def generate_tree(root):
@@ -233,25 +230,34 @@ def graph_canon(G, Q, traces=False):
 
             `Returns`:
                 Returns a new list corresponding to p indv. v
+                and returns the position of the split
             
             """
             new_p = []
+            split_position = 0
+            has_individualized = False
             for part in p:
-                if v in part:
-                    ## Create and insert {v}
-                    new_p.append([v])
-                    new_part = []
-                    ## Create V_i \ {v}
-                    for nodes in part:
-                        if nodes != v:
-                            new_part.append(nodes)
-                    ## Insert V_i \ {v}
-                    new_p.append(new_part)
+                if not has_individualized:
+                    if v in part:
+                        split_position += 1
+                        ## Create and insert {v}
+                        new_p.append([v])
+                        new_part = []
+                        ## Create V_i \ {v}
+                        for nodes in part:
+                            if nodes != v:
+                                new_part.append(nodes)
+                        ## Insert V_i \ {v}
+                        new_p.append(new_part)
+                        has_individualized = True
+                    else: 
+                        split_position += len(part)
+                        new_p.append(part)
                 ## All parts not containing v stays the same in the same relative position in the partition
                 else:
                     new_p.append(part)
             
-            return new_p
+            return new_p, split_position
 
         def update_automorphisms(new_leaf_partition, new_leaf_adj):            
             ## If partitions are isomorphic, compute automorphism between them
@@ -343,11 +349,14 @@ def graph_canon(G, Q, traces=False):
                 new_sequence = copy.deepcopy(current_seq)
                 new_sequence.append(to_indiv)
 
-            indiv_partition = individualize(partition, to_indiv)
+            indiv_partition, split_position = individualize(partition, to_indiv)
             
-            ## create dummy node with parent's partition
+            ## create dummy node with parent's partition and append individualized node to the split
             this_node = TreeNode(partition, parent_node, new_sequence)
-            this_node.set_trace(copy.deepcopy(parent_node.get_trace()))
+            if traces: 
+                this_node.set_trace(copy.deepcopy(parent_node.get_trace()))
+                this_node.get_trace().append([split_position])
+            
             refinement = equitable_refinement(indiv_partition, this_node)
             ## Only applicable for when traces is true
             if traces and not refinement:
@@ -356,18 +365,16 @@ def graph_canon(G, Q, traces=False):
                 ## update node with refined partition
                 this_node.set_partition(refinement)
             
-
-            ## Find first non-trivial part of the refined partition
-            ## NOTE: Input parameter-based target cell selector function here instead.
+            ## Target cell selector
             children_list = copy.deepcopy(Q(refinement))
 
             ## If no choices available, this is a leaf node
             if len(children_list) == 0:
 
-                print()
-                print(f"\t \t \t \t \t Traversal sequence: {this_node.get_travers_seq()}")
-                print(f"Current max trace \t: {global_invariants['max_trace']}")
-                print(f"My trace \t\t: {this_node.get_trace()}")
+                # print()
+                # print(f"\t \t \t \t \t Traversal sequence: {this_node.get_travers_seq()}")
+                # print(f"Current max trace \t: {global_invariants['max_trace']}")
+                # print(f"My trace \t\t: {this_node.get_trace()}")
                 
                 ## create mapping from current discrete partition. Note that partition[i] says that the node (= partition[i]) of the input graph 
                 ## goes to color "i" i.e. node "i" in the canonical labelling.
@@ -380,8 +387,12 @@ def graph_canon(G, Q, traces=False):
                     global_invariants["least_partition"] = this_node.get_partition()
                     global_invariants["least_adjacency"] = leaf_adj
 
+                ## First leaf 
+                if traces and not global_invariants["max_trace"][0]:
+                    global_invariants["max_trace"] = this_node.get_trace()
+
                 ## Overwrite max trace if leaf's trace is larger
-                if traces and this_node.get_trace() > global_invariants["max_trace"]:
+                if traces and not less_than_max(this_node.get_trace()):
                     print(f"overwrite trace")
                     global_invariants["max_trace"] = this_node.get_trace()
 
@@ -420,18 +431,14 @@ def graph_canon(G, Q, traces=False):
     
     ##                                  CANONICAL
 
-    
-
-    ## INCLUDE TRACES CHECK
     root_partition = [sorted(list(G.nodes))]
     root_node = TreeNode([], None, [])
+    if traces: root_node.set_trace([[]])
     init_refinement = equitable_refinement(root_partition, root_node)
     root_node.set_partition(init_refinement)
-    global_invariants["max_trace"] = root_node.get_trace()
-    
+    # if traces: global_invariants["max_trace"] = root_node.get_trace()
 
-    ## Find first non-trivial part of the refined partition
-    ## NOTE: Input parameter-based target cell selector function here instead.
+    ## Target cell selector
     children_list = copy.deepcopy(Q(init_refinement))
     
     ## If initial equitable partition is discrete, the canonical representation has been achieved.
@@ -490,26 +497,27 @@ def rightmost_first_non_trivial(partition):
 
 if __name__ == "__main__":
 
-    graph = nx.Graph()
-    graph.add_nodes_from([i for i in range(9)])
-    graph.add_edges_from([(0, 1), (0, 3), (1, 2), (1, 4), (2, 5), (3, 4), (3, 6), (4, 5), (4, 7), (5, 8), (6, 7), (7, 8)])
+    # graph = nx.Graph()
+    # graph.add_nodes_from([i for i in range(9)])
+    # graph.add_edges_from([(0, 1), (0, 3), (1, 2), (1, 4), (2, 5), (3, 4), (3, 6), (4, 5), (4, 7), (5, 8), (6, 7), (7, 8)])
 
     # res, autos = graph_canon(graph, first_non_trivial, True)
     # print(len(autos))
 
-    new_graph = nx.Graph()
-
-    new_graph.add_nodes_from([i for i in range(11)])
-    new_graph.add_edges_from([(0, 1), (0, 2), (1, 2), (2, 3), (2, 5), (2, 6), (3, 4), (4, 5), (5, 8), (5, 9), (5, 10), (6, 7), (6, 10), (8, 9)])
-
-    res, autos = graph_canon(new_graph, first_non_trivial, True)
-    print(len(autos))
-
     # for i in range(100):
-    #     g = nx.dense_gnm_random_graph(50, 1224)
+    #     g = nx.dense_gnm_random_graph(20, 170)
 
     #     res = test_canon(g, first_non_trivial, True)
     #     if not res:
     #         break
     #     else:
     #         print(res)
+
+
+    new_graph = nx.Graph()
+    new_graph.add_nodes_from([i for i in range(9)])
+    new_graph.add_edges_from([(0, 1), (0, 3), (1, 2), (1, 3), (1, 4), (1, 5), (2, 5), (3, 6), (3, 7), (4, 7), (5, 7), (5, 8), (6, 7), (7, 8)])
+
+
+    res, autos = graph_canon(new_graph, first_non_trivial, True)
+    print(len(autos))
