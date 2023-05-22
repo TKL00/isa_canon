@@ -37,6 +37,8 @@ def graph_canon(G, Q, traces=False):
             Automorphisms (list( dict: node -> node )): The generating set for the automorphism group of G.
     """
 
+    trace_had_impact = False
+
     G_NODE_AMT = len(G.nodes)
 
     ## list of automorphism (dicts)
@@ -226,7 +228,8 @@ def graph_canon(G, Q, traces=False):
         ## NOTE: Abort refinement if current partition is lexicographically smaller than the global minimum
         while len(B) != 0:
             if traces and less_than_max(v.get_trace()):
-                print("Skipped branch due to trace")
+                # print("Skipped branch due to trace")
+                trace_had_impact = True
                 return False
 
             ## Choose individualizing the lexicographically smallest
@@ -404,12 +407,12 @@ def graph_canon(G, Q, traces=False):
                     global_invariants["least_partition"] = this_node.get_partition()
                     global_invariants["least_adjacency"] = leaf_adj
                     if traces: ## initial trace
-                        print("first trace")
+                        #print("first trace")
                         global_invariants["max_trace"] = this_node.get_trace()                    
 
                 ## Overwrite max trace if leaf's trace is larger
                 if traces and greater_than_max(this_node.get_trace()):
-                    print(f"overwrite trace")
+                    #print(f"overwrite trace")
                     global_invariants["max_trace"] = this_node.get_trace()
 
                 
@@ -459,7 +462,7 @@ def graph_canon(G, Q, traces=False):
     
     ## If initial equitable partition is discrete, the canonical representation has been achieved.
     if not children_list:
-        return {init_refinement[i][0]:i for i in range(G_NODE_AMT)}, []
+        return {init_refinement[i][0]:i for i in range(G_NODE_AMT)}, [], trace_had_impact
 
     root_node.set_children(children_list)
 
@@ -468,7 +471,7 @@ def graph_canon(G, Q, traces=False):
     canonical_partition = global_invariants["least_partition"]
     canonical_labeling = {canonical_partition[i][0]:i for i in range(G_NODE_AMT)}
 
-    return canonical_labeling, automorphisms
+    return canonical_labeling, automorphisms, trace_had_impact
 
 def test_canon(G, Q, traces=False):
     """
