@@ -69,6 +69,28 @@ def graph_canon(G, Q, traces=False):
             compare_num_current_trace = node_current_trace[0:prefix_length]
 
             return compare_num_current_trace < compare_num_max_trace 
+
+    def greater_than_max(current_trace):
+
+            max_trace = global_invariants["max_trace"]
+            
+            ## Determine what level the current trace is at in the search tree
+            tree_depth = min(len(max_trace), len(current_trace))
+            
+            ## Gets the specific trace introduced at that level in the max trace,
+            ## and in the current level in the current trace
+            node_max_trace = max_trace[tree_depth - 1]
+            node_current_trace = current_trace[-1]
+            
+            ## Determine how many elements should be compared
+            prefix_length = min(len(node_max_trace), len(node_current_trace))
+
+            ## Slicing of the nodes
+
+            compare_num_max_trace = node_max_trace[0:prefix_length]
+            compare_num_current_trace = node_current_trace[0:prefix_length]
+
+            return compare_num_current_trace > compare_num_max_trace 
     
     def equitable_refinement(p, v):
         """
@@ -370,11 +392,6 @@ def graph_canon(G, Q, traces=False):
 
             ## If no choices available, this is a leaf node
             if len(children_list) == 0:
-
-                # print()
-                # print(f"\t \t \t \t \t Traversal sequence: {this_node.get_travers_seq()}")
-                # print(f"Current max trace \t: {global_invariants['max_trace']}")
-                # print(f"My trace \t\t: {this_node.get_trace()}")
                 
                 ## create mapping from current discrete partition. Note that partition[i] says that the node (= partition[i]) of the input graph 
                 ## goes to color "i" i.e. node "i" in the canonical labelling.
@@ -386,13 +403,12 @@ def graph_canon(G, Q, traces=False):
                 if not global_invariants["least_partition"]:
                     global_invariants["least_partition"] = this_node.get_partition()
                     global_invariants["least_adjacency"] = leaf_adj
-
-                ## First leaf 
-                if traces and not global_invariants["max_trace"][0]:
-                    global_invariants["max_trace"] = this_node.get_trace()
+                    if traces: ## initial trace
+                        print("first trace")
+                        global_invariants["max_trace"] = this_node.get_trace()                    
 
                 ## Overwrite max trace if leaf's trace is larger
-                if traces and not less_than_max(this_node.get_trace()):
+                if traces and greater_than_max(this_node.get_trace()):
                     print(f"overwrite trace")
                     global_invariants["max_trace"] = this_node.get_trace()
 
@@ -495,7 +511,7 @@ def rightmost_first_non_trivial(partition):
     return []
 
 
-if __name__ == "__main__":
+# if __name__ == "__main__":
 
     # graph = nx.Graph()
     # graph.add_nodes_from([i for i in range(9)])
@@ -514,10 +530,12 @@ if __name__ == "__main__":
     #         print(res)
 
 
-    new_graph = nx.Graph()
-    new_graph.add_nodes_from([i for i in range(9)])
-    new_graph.add_edges_from([(0, 1), (0, 3), (1, 2), (1, 3), (1, 4), (1, 5), (2, 5), (3, 6), (3, 7), (4, 7), (5, 7), (5, 8), (6, 7), (7, 8)])
+    # new_graph = nx.Graph()
+    # new_graph.add_nodes_from([i for i in range(9)])
+    # new_graph.add_edges_from([(0, 1), (0, 3), (1, 2), (1, 3), (1, 4), (1, 5), (2, 5), (3, 6), (3, 7), (4, 7), (5, 7), (5, 8), (6, 7), (7, 8)])
 
+    # # frucht_graph = nx.frucht_graph()
 
-    res, autos = graph_canon(new_graph, first_non_trivial, True)
-    print(len(autos))
+    # res, autos = graph_canon(frucht_graph, first_non_trivial, True)
+    # print(len(autos))
+    # print(autos)
