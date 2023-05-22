@@ -21,7 +21,7 @@ def create_adjacency(number_of_nodes, edge_set):
         adj[u][v] = adj[v][u] = 1
     return adj
 
-def graph_canon(G, Q):
+def graph_canon(G, Q, traces=False):
     """
         Produces the canonical labeling of the Graph G using the Graph Canonicalization 
         algorithm suggested by Brendan McKay.
@@ -30,6 +30,7 @@ def graph_canon(G, Q):
             G (Graph): NetworkX Graph
             Q (function ( list( list(int) ) ) -> list): The target cell selector that, given a non-discrete partition, 
                                                         returns a reference to a non-trivial part in the partition.
+            traces (bool): Declares whether the node invariant on cell spilt positions should be used.
 
         `Returns`:
             Canonical_labeling (dict: node -> node): Relabeling mapping representing G in its canonical representation
@@ -37,14 +38,69 @@ def graph_canon(G, Q):
     """
 
     G_NODE_AMT = len(G.nodes)
+
+    ## list of automorphism (dicts)
+    automorphisms = []
+    ## the global minimum consist of 1) a partition and 2) the resulting adjacency matrix when permuting G.
+    global_invariants = {
+        "least_partition": [],
+        "least_adjacency": [],
+        "max_trace": [[]]
+    }
+
+    def less_than_max(current_trace):
+
+            max_trace = global_invariants["max_trace"]
+            
+            ## Determine what level the current trace is at in the search tree
+            tree_depth = min(len(max_trace), len(current_trace))
+            
+            ## Gets the specific trace introduced at that level in the max trace,
+            ## and in the current level in the current trace
+            node_max_trace = max_trace[tree_depth - 1]
+            node_current_trace = current_trace[-1]
+            
+            ## Determine how many elements should be compared
+            prefix_length = min(len(node_max_trace), len(node_current_trace))
+
+            ## Slicing of the nodes
+
+            compare_num_max_trace = node_max_trace[0:prefix_length]
+            compare_num_current_trace = node_current_trace[0:prefix_length]
+
+            return compare_num_current_trace < compare_num_max_trace 
+
+    def greater_than_max(current_trace):
+
+            max_trace = global_invariants["max_trace"]
+            
+            ## Determine what level the current trace is at in the search tree
+            tree_depth = min(len(max_trace), len(current_trace))
+            
+            ## Gets the specific trace introduced at that level in the max trace,
+            ## and in the current level in the current trace
+            node_max_trace = max_trace[tree_depth - 1]
+            node_current_trace = current_trace[-1]
+            
+            ## Determine how many elements should be compared
+            prefix_length = min(len(node_max_trace), len(node_current_trace))
+
+            ## Slicing of the nodes
+
+            compare_num_max_trace = node_max_trace[0:prefix_length]
+            compare_num_current_trace = node_current_trace[0:prefix_length]
+
+            return compare_num_current_trace > compare_num_max_trace 
     
-    def equitable_refinement(p):
+    def equitable_refinement(p, v):
         """
             Produces an equitable ordered partition based on the input partition 'p' of the graph 'G'
             using the algorithm suggested by Brendan McKay.
 
             `Parameters`
                 p (list( list(int) )): List of partitioned nodes (in lists).
+
+                v (TreeNode): The current node in the search tree
         """
         def shatter_set(p, adj):
             """
@@ -88,7 +144,8 @@ def graph_canon(G, Q):
                                 ## Ignore rest of nodes in V_j and continue to V_(j+1) if one exists
                                 break
             return B
-        
+
+
         def shatter_partition(p, adj, to_shatter, shatter_with):
             """
                 Computes a new partition from 'p' resulting from shattering the 
@@ -139,6 +196,17 @@ def graph_canon(G, Q):
             
             ## Replace partition V_i in 'partition' with all partitions in 'shatter_partitions'
             return_partition = []
+
+            ## When using traces, we add the trace of this shatter to the node's current trace
+            if(traces):
+                split_position = 0
+                for i in range(to_shatter):
+                    split_position += len(p[i])
+                for i in range(len(shatter_partitions) -1):
+                    split_position += len(shatter_partitions[i])
+                    v.get_trace()[-1].append(split_position)
+                                                       
+            ## Simply replacing the partition V_i with the partitions in shatter_partition
             for i in range(len(p)):
                 if i != to_shatter:
                     return_partition.append(p[i])
@@ -148,20 +216,25 @@ def graph_canon(G, Q):
             
             return return_partition
 
+
         adj_matrix = create_adjacency(G_NODE_AMT, G.edges)
 
         tau = p
         
         B = shatter_set(p, adj_matrix)
 
-        ## NOTE: Abort refinement if current partition is lexicographically larger than the global minimum
+        ## NOTE: Abort refinement if current partition is lexicographically smaller than the global minimum
         while len(B) != 0:
+            if traces and less_than_max(v.get_trace()):
+                print("Skipped branch due to trace")
+                return False
+
             ## Choose individualizing the lexicographically smallest
             (i, j) = sorted(B)[0]
             tau = shatter_partition(tau, adj_matrix, i, j)
             ## Update B to see if partitions remains to be shattered
             B = shatter_set(tau, adj_matrix)
-
+        
         return tau
    
     def generate_tree(root):
@@ -171,15 +244,6 @@ def graph_canon(G, Q):
             corresponding to the labeling of the graph G.
         """
 
-        ## list of automorphism (dicts)
-        automorphisms = []
-        ## the global minimum consist of 1) a partition and 2) the resulting adjacency matrix when permuting G.
-        global_invariants = {
-            "least_partition": [],
-            "least_adjacency": [],
-            "max_trace": ""
-        }
-
         def individualize(p, v):
             """Individualizes the node 'v' in partition 'p' such that if 'v' in V_i:
             
@@ -188,27 +252,36 @@ def graph_canon(G, Q):
 
             `Returns`:
                 Returns a new list corresponding to p indv. v
+                and returns the position of the split
             
             """
             new_p = []
+            split_position = 0
+            has_individualized = False
             for part in p:
-                if v in part:
-                    ## Create and insert {v}
-                    new_p.append([v])
-                    new_part = []
-                    ## Create V_i \ {v}
-                    for nodes in part:
-                        if nodes != v:
-                            new_part.append(nodes)
-                    ## Insert V_i \ {v}
-                    new_p.append(new_part)
+                if not has_individualized:
+                    if v in part:
+                        split_position += 1
+                        ## Create and insert {v}
+                        new_p.append([v])
+                        new_part = []
+                        ## Create V_i \ {v}
+                        for nodes in part:
+                            if nodes != v:
+                                new_part.append(nodes)
+                        ## Insert V_i \ {v}
+                        new_p.append(new_part)
+                        has_individualized = True
+                    else: 
+                        split_position += len(part)
+                        new_p.append(part)
                 ## All parts not containing v stays the same in the same relative position in the partition
                 else:
                     new_p.append(part)
             
-            return new_p
+            return new_p, split_position
 
-        def update_automorphisms(new_leaf_partition, new_leaf_adj, automorphisms):            
+        def update_automorphisms(new_leaf_partition, new_leaf_adj):            
             ## If partitions are isomorphic, compute automorphism between them
             if np.array_equal(new_leaf_adj, global_invariants["least_adjacency"]):
                 best_partition = global_invariants["least_partition"]
@@ -233,7 +306,7 @@ def graph_canon(G, Q):
 
                 return all_fixed
 
-        def calculate_orbit(child, automorphisms):
+        def calculate_orbit(child, fixed_automorphisms):
             """
                 Calculates the orbits for each node child in the children list under closure of the automorphism,
                 thereby partitioning the children list, where each orbit is a part.
@@ -256,7 +329,7 @@ def graph_canon(G, Q):
             while L_i:
                 L_i_s = set([])
                 for vals in L_i:
-                    for automorphism in automorphisms:
+                    for automorphism in fixed_automorphisms:
                         L_i_s.add(automorphism[vals])
                 L_j = L_i_s - found_members
                 for new_discovery in L_j:
@@ -266,7 +339,7 @@ def graph_canon(G, Q):
             
             return sorted(list(found_members))
 
-        def generate_subtree(parent_node, partition, current_seq, to_indiv, automorphisms):
+        def generate_subtree(parent_node, partition, current_seq, to_indiv):
             """
                 Subroutine to generate the rest of the tree spanning from this node
 
@@ -291,10 +364,6 @@ def graph_canon(G, Q):
                 ## equal
                 return False
 
-            indiv_partition = individualize(partition, to_indiv)
-            
-            refinement = equitable_refinement(indiv_partition)
-            
             ## If parent is root node, the current_seq is empty and will only contain this individualized node
             if not current_seq:
                 new_sequence = [to_indiv]
@@ -302,10 +371,23 @@ def graph_canon(G, Q):
                 new_sequence = copy.deepcopy(current_seq)
                 new_sequence.append(to_indiv)
 
-            this_node = TreeNode(refinement, parent_node, new_sequence)
-
-            ## Find first non-trivial part of the refined partition
-            ## NOTE: Input parameter-based target cell selector function here instead.
+            indiv_partition, split_position = individualize(partition, to_indiv)
+            
+            ## create dummy node with parent's partition and append individualized node to the split
+            this_node = TreeNode(partition, parent_node, new_sequence)
+            if traces: 
+                this_node.set_trace(copy.deepcopy(parent_node.get_trace()))
+                this_node.get_trace().append([split_position])
+            
+            refinement = equitable_refinement(indiv_partition, this_node)
+            ## Only applicable for when traces is true
+            if traces and not refinement:
+                return
+            else: 
+                ## update node with refined partition
+                this_node.set_partition(refinement)
+            
+            ## Target cell selector
             children_list = copy.deepcopy(Q(refinement))
 
             ## If no choices available, this is a leaf node
@@ -321,10 +403,19 @@ def graph_canon(G, Q):
                 if not global_invariants["least_partition"]:
                     global_invariants["least_partition"] = this_node.get_partition()
                     global_invariants["least_adjacency"] = leaf_adj
+                    if traces: ## initial trace
+                        print("first trace")
+                        global_invariants["max_trace"] = this_node.get_trace()                    
+
+                ## Overwrite max trace if leaf's trace is larger
+                if traces and greater_than_max(this_node.get_trace()):
+                    print(f"overwrite trace")
+                    global_invariants["max_trace"] = this_node.get_trace()
+
                 
                 new_leaf_partition = this_node.get_partition()
                 ## Check if automorph with current best leaf. 
-                update_automorphisms(new_leaf_partition, leaf_adj, automorphisms)
+                update_automorphisms(new_leaf_partition, leaf_adj)
                 
                 ## Check if current relabeling is better than previous relabeling. Resulting array contains true if one elemen
                 if array_less_than(leaf_adj, global_invariants["least_adjacency"]):
@@ -343,39 +434,43 @@ def graph_canon(G, Q):
                     orbit = calculate_orbit(child, A_prime)
                     ## Only the first element of the orbit should be discovered. Since everything is lexicographically sorted, a child
                     ## that appears late in an orbit should not be traversed.
-                    if orbit[0] == child: generate_subtree(this_node, refinement, new_sequence, child, automorphisms)
+                    if orbit[0] == child: generate_subtree(this_node, refinement, new_sequence, child)
 
                                              ## GENERATE TREE ROOT  
 
         ## Generate the root node's canonical
         for child in root.get_children():
             orbit = calculate_orbit(child, automorphisms)
-            
-            if orbit[0] == child: generate_subtree(root, root.get_partition(), [], child, automorphisms)
+            if orbit[0] == child: generate_subtree(root, root.get_partition(), [], child)
 
-        return global_invariants["least_partition"], automorphisms
-    
+        return
     
     ##                                  CANONICAL
-    root_partition = [sorted(list(G.nodes))]
-    init_refinement = equitable_refinement(root_partition)
-    root_node = TreeNode(init_refinement, None, [])
 
-    ## Find first non-trivial part of the refined partition
-    ## NOTE: Input parameter-based target cell selector function here instead.
+    root_partition = [sorted(list(G.nodes))]
+    root_node = TreeNode([], None, [])
+    if traces: root_node.set_trace([[]])
+    init_refinement = equitable_refinement(root_partition, root_node)
+    root_node.set_partition(init_refinement)
+    # if traces: global_invariants["max_trace"] = root_node.get_trace()
+
+    ## Target cell selector
     children_list = copy.deepcopy(Q(init_refinement))
     
+    ## If initial equitable partition is discrete, the canonical representation has been achieved.
     if not children_list:
         return {init_refinement[i][0]:i for i in range(G_NODE_AMT)}, []
 
     root_node.set_children(children_list)
 
-    canonical_partition, automorphisms = generate_tree(root_node)
+    ## generate_tree has side effects on the global invariants dict
+    generate_tree(root_node)
+    canonical_partition = global_invariants["least_partition"]
     canonical_labeling = {canonical_partition[i][0]:i for i in range(G_NODE_AMT)}
 
     return canonical_labeling, automorphisms
 
-def test_canon(G, Q):
+def test_canon(G, Q, traces=False):
     """
         Runs the graph_canon function on G and checks whether it correctly computes the 
         canonical form of G.
@@ -389,8 +484,10 @@ def test_canon(G, Q):
     perm_G.add_nodes_from(G.nodes)
     perm_G.add_edges_from(perm_edges)
 
-    labeling_1, automorphisms_1 = graph_canon(G, Q)
-    labeling_2, automorphisms_2 = graph_canon(perm_G, Q)
+    labeling_1, automorphisms_1 = graph_canon(G, Q, traces)
+    print(f"len of automorphisms {len(automorphisms_1)}")
+    labeling_2, automorphisms_2 = graph_canon(perm_G, Q, traces)
+    print(f"len of automorphisms {len(automorphisms_2)}")
 
     G_canon_edge = permute_edges(labeling_1, G.edges)
     perm_G_canon_edge = permute_edges(labeling_2, perm_G.edges)
@@ -414,17 +511,31 @@ def rightmost_first_non_trivial(partition):
     return []
 
 
-if __name__ == "__main__":
+# if __name__ == "__main__":
 
-    graph = nx.Graph()
-    graph.add_nodes_from([i for i in range(9)])
-    graph.add_edges_from([(0, 1), (0, 3), (1, 2), (1, 4), (2, 5), (3, 4), (3, 6), (4, 5), (4, 7), (5, 8), (6, 7), (7, 8)])
+    # graph = nx.Graph()
+    # graph.add_nodes_from([i for i in range(9)])
+    # graph.add_edges_from([(0, 1), (0, 3), (1, 2), (1, 4), (2, 5), (3, 4), (3, 6), (4, 5), (4, 7), (5, 8), (6, 7), (7, 8)])
 
-    for i in range(100):
-        g = nx.dense_gnm_random_graph(220, 750)
+    # res, autos = graph_canon(graph, first_non_trivial, True)
+    # print(len(autos))
 
-        res = test_canon(g, first_non_trivial)
-        if not res:
-            break
-        else:
-            print(res)
+    # for i in range(100):
+    #     g = nx.dense_gnm_random_graph(20, 170)
+
+    #     res = test_canon(g, first_non_trivial, True)
+    #     if not res:
+    #         break
+    #     else:
+    #         print(res)
+
+
+    # new_graph = nx.Graph()
+    # new_graph.add_nodes_from([i for i in range(9)])
+    # new_graph.add_edges_from([(0, 1), (0, 3), (1, 2), (1, 3), (1, 4), (1, 5), (2, 5), (3, 6), (3, 7), (4, 7), (5, 7), (5, 8), (6, 7), (7, 8)])
+
+    # # frucht_graph = nx.frucht_graph()
+
+    # res, autos = graph_canon(frucht_graph, first_non_trivial, True)
+    # print(len(autos))
+    # print(autos)
