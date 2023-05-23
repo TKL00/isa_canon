@@ -52,14 +52,14 @@ def graph_canon(G, Q, traces=False):
 
     def less_than_max(current_trace):
         """
-        Compares the current trace with the max trace, only compares to the length of the
-        shortest of the two traces. 
+            Compares the current trace with the max trace, only compares to the length of the
+            shortest of the two traces. 
 
-        Args:
-            current_trace (list (list)): current trace containing the trace for the current branch in the search tree.
+            Args:
+                current_trace (list (list)): current trace containing the trace for the current branch in the search tree.
 
-        Returns:
-            boolean: true if current trace is less than max, false otherwise.
+            Returns:
+                boolean: true if current trace is less than max, false otherwise.
         """
         max_trace = global_invariants["max_trace"]
         
@@ -83,14 +83,14 @@ def graph_canon(G, Q, traces=False):
 
     def greater_than_max(current_trace):
         """
-        Compares the current trace with the max trace, only compares to the length of the
-        shortest of the two traces. 
+            Compares the current trace with the max trace, only compares to the length of the
+            shortest of the two traces. 
 
-        Args:
-            current_trace (list (list)): current trace containing the trace for the current branch in the search tree.
+            Args:
+                current_trace (list (list)): current trace containing the trace for the current branch in the search tree.
 
-        Returns:
-            boolean: true if current trace is greater than max, false otherwise.
+            Returns:
+                boolean: true if current trace is greater than max, false otherwise.
         """
 
         max_trace = global_invariants["max_trace"]
@@ -426,12 +426,10 @@ def graph_canon(G, Q, traces=False):
                     global_invariants["least_partition"] = this_node.get_partition()
                     global_invariants["least_adjacency"] = leaf_adj
                     if traces: ## initial trace
-                        #print("first trace")
                         global_invariants["max_trace"] = this_node.get_trace()                    
 
                 ## Overwrite max trace if leaf's trace is larger
                 if traces and greater_than_max(this_node.get_trace()):
-                    #print(f"overwrite trace")
                     global_invariants["max_trace"] = this_node.get_trace()
 
                 
@@ -474,7 +472,6 @@ def graph_canon(G, Q, traces=False):
     if traces: root_node.set_trace([[]])
     init_refinement = equitable_refinement(root_partition, root_node)
     root_node.set_partition(init_refinement)
-    # if traces: global_invariants["max_trace"] = root_node.get_trace()
 
     ## Target cell selector
     children_list = copy.deepcopy(Q(init_refinement))
