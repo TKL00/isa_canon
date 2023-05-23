@@ -35,10 +35,8 @@ def graph_canon(G, Q, traces=False):
         `Returns`:
             Canonical_labeling (dict: node -> node): Relabeling mapping representing G in its canonical representation
             Automorphisms (list( dict: node -> node )): The generating set for the automorphism group of G.
-            trace_had_impact (boolean): Boolean that indicates whether any branches were skipped due to traces.
+            trace_impact (boolean): Boolean that indicates whether any branches were skipped due to traces.
     """
-
-    trace_had_impact = False
 
     G_NODE_AMT = len(G.nodes)
 
@@ -48,7 +46,8 @@ def graph_canon(G, Q, traces=False):
     global_invariants = {
         "least_partition": [],
         "least_adjacency": [],
-        "max_trace": [[]]
+        "max_trace": [[]],
+        "trace_impact": False
     }
 
     def less_than_max(current_trace):
@@ -249,7 +248,7 @@ def graph_canon(G, Q, traces=False):
         while len(B) != 0:
             if traces and less_than_max(v.get_trace()):
                 # print("Skipped branch due to trace")
-                trace_had_impact = True
+                global_invariants["trace_impact"] = True
                 return False
 
             ## Choose individualizing the lexicographically smallest
@@ -482,7 +481,7 @@ def graph_canon(G, Q, traces=False):
     
     ## If initial equitable partition is discrete, the canonical representation has been achieved.
     if not children_list:
-        return {init_refinement[i][0]:i for i in range(G_NODE_AMT)}, [], trace_had_impact
+        return {init_refinement[i][0]:i for i in range(G_NODE_AMT)}, [], global_invariants["trace_impact"]
 
     root_node.set_children(children_list)
 
@@ -491,7 +490,7 @@ def graph_canon(G, Q, traces=False):
     canonical_partition = global_invariants["least_partition"]
     canonical_labeling = {canonical_partition[i][0]:i for i in range(G_NODE_AMT)}
 
-    return canonical_labeling, automorphisms, trace_had_impact
+    return canonical_labeling, automorphisms, global_invariants["trace_impact"]
 
 def test_canon(G, Q, traces=False):
     """
