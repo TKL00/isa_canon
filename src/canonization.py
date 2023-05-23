@@ -35,6 +35,7 @@ def graph_canon(G, Q, traces=False):
         `Returns`:
             Canonical_labeling (dict: node -> node): Relabeling mapping representing G in its canonical representation
             Automorphisms (list( dict: node -> node )): The generating set for the automorphism group of G.
+            trace_had_impact (boolean): Boolean that indicates whether any branches were skipped due to traces.
     """
 
     trace_had_impact = False
@@ -51,48 +52,67 @@ def graph_canon(G, Q, traces=False):
     }
 
     def less_than_max(current_trace):
+        """
+        Compares the current trace with the max trace, only compares to the length of the
+        shortest of the two traces. 
 
-            max_trace = global_invariants["max_trace"]
-            
-            ## Determine what level the current trace is at in the search tree
-            tree_depth = min(len(max_trace), len(current_trace))
-            
-            ## Gets the specific trace introduced at that level in the max trace,
-            ## and in the current level in the current trace
-            node_max_trace = max_trace[tree_depth - 1]
-            node_current_trace = current_trace[-1]
-            
-            ## Determine how many elements should be compared
-            prefix_length = min(len(node_max_trace), len(node_current_trace))
+        Args:
+            current_trace (list (list)): current trace containing the trace for the current branch in the search tree.
 
-            ## Slicing of the nodes
+        Returns:
+            boolean: true if current trace is less than max, false otherwise.
+        """
+        max_trace = global_invariants["max_trace"]
+        
+        ## Determine what level the current trace is at in the search tree
+        tree_depth = min(len(max_trace), len(current_trace))
+        
+        ## Gets the specific trace introduced at that level in the max trace,
+        ## and in the current level in the current trace
+        node_max_trace = max_trace[tree_depth - 1]
+        node_current_trace = current_trace[-1]
+        
+        ## Determine how many elements should be compared
+        prefix_length = min(len(node_max_trace), len(node_current_trace))
 
-            compare_num_max_trace = node_max_trace[0:prefix_length]
-            compare_num_current_trace = node_current_trace[0:prefix_length]
+        ## Slicing of the nodes
 
-            return compare_num_current_trace < compare_num_max_trace 
+        compare_num_max_trace = node_max_trace[0:prefix_length]
+        compare_num_current_trace = node_current_trace[0:prefix_length]
+
+        return compare_num_current_trace < compare_num_max_trace 
 
     def greater_than_max(current_trace):
+        """
+        Compares the current trace with the max trace, only compares to the length of the
+        shortest of the two traces. 
 
-            max_trace = global_invariants["max_trace"]
-            
-            ## Determine what level the current trace is at in the search tree
-            tree_depth = min(len(max_trace), len(current_trace))
-            
-            ## Gets the specific trace introduced at that level in the max trace,
-            ## and in the current level in the current trace
-            node_max_trace = max_trace[tree_depth - 1]
-            node_current_trace = current_trace[-1]
-            
-            ## Determine how many elements should be compared
-            prefix_length = min(len(node_max_trace), len(node_current_trace))
+        Args:
+            current_trace (list (list)): current trace containing the trace for the current branch in the search tree.
 
-            ## Slicing of the nodes
+        Returns:
+            boolean: true if current trace is greater than max, false otherwise.
+        """
 
-            compare_num_max_trace = node_max_trace[0:prefix_length]
-            compare_num_current_trace = node_current_trace[0:prefix_length]
+        max_trace = global_invariants["max_trace"]
+        
+        ## Determine what level the current trace is at in the search tree
+        tree_depth = min(len(max_trace), len(current_trace))
+        
+        ## Gets the specific trace introduced at that level in the max trace,
+        ## and in the current level in the current trace
+        node_max_trace = max_trace[tree_depth - 1]
+        node_current_trace = current_trace[-1]
+        
+        ## Determine how many elements should be compared
+        prefix_length = min(len(node_max_trace), len(node_current_trace))
 
-            return compare_num_current_trace > compare_num_max_trace 
+        ## Slicing of the nodes
+
+        compare_num_max_trace = node_max_trace[0:prefix_length]
+        compare_num_current_trace = node_current_trace[0:prefix_length]
+
+        return compare_num_current_trace > compare_num_max_trace 
     
     def equitable_refinement(p, v):
         """
