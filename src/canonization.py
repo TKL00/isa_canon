@@ -44,8 +44,8 @@ def graph_canon(G, Q, traces=False):
     automorphisms = []
     ## the global minimum consist of 1) a partition and 2) the resulting adjacency matrix when permuting G.
     global_invariants = {
-        "least_partition": [],
-        "least_adjacency": [],
+        "least_partition": [[i] for i in range(len(G.nodes))],
+        "least_adjacency": create_adjacency(len(G.nodes), list(G.edges)),
         "max_trace": [[]],
         "trace_impact": False
     }
@@ -503,9 +503,9 @@ def test_canon(G, Q, traces=False):
     perm_G.add_nodes_from(G.nodes)
     perm_G.add_edges_from(perm_edges)
 
-    labeling_1, automorphisms_1 = graph_canon(G, Q, traces)
+    labeling_1, automorphisms_1, trace_impact_1 = graph_canon(G, Q, traces)
     print(f"len of automorphisms {len(automorphisms_1)}")
-    labeling_2, automorphisms_2 = graph_canon(perm_G, Q, traces)
+    labeling_2, automorphisms_2, trace_impact_2 = graph_canon(perm_G, Q, traces)
     print(f"len of automorphisms {len(automorphisms_2)}")
 
     G_canon_edge = permute_edges(labeling_1, G.edges)
@@ -553,8 +553,8 @@ def rightmost_first_non_trivial(partition):
     # new_graph.add_nodes_from([i for i in range(9)])
     # new_graph.add_edges_from([(0, 1), (0, 3), (1, 2), (1, 3), (1, 4), (1, 5), (2, 5), (3, 6), (3, 7), (4, 7), (5, 7), (5, 8), (6, 7), (7, 8)])
 
-    # # frucht_graph = nx.frucht_graph()
+    # frucht_graph = nx.frucht_graph()
 
-    # res, autos = graph_canon(frucht_graph, first_non_trivial, True)
+    # res, autos, trace_impact = graph_canon(frucht_graph, first_non_trivial, True)
     # print(len(autos))
     # print(autos)
