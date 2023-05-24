@@ -1,5 +1,5 @@
 import os
-from canonization import permute_edges, graph_canon, first_non_trivial, rightmost_first_non_trivial, create_adjacency
+from canonization import permute_edges, graph_canon, first_non_trivial, rightmost_first_non_trivial, create_adjacency, first_largest
 import networkx as nx
 import numpy as np 
 import random
@@ -115,6 +115,14 @@ def table_folder(dir_name):
     table2(dir_name, rightmost_first_non_trivial, True)
 
 
+    print(f"The target cell: first_largest and traces: false")
+    print(f"graph_name\tnode_count\tedge_count\ttime(s)\taut")
+    table2(dir_name, first_largest, False)
+
+    print(f"The target cell: first_largest and traces: true")
+    print(f"graph_name\tnode_count\tedge_count\ttime(s)\taut\ttrace_impact")
+    table2(dir_name, first_largest, True)
+
 if __name__ == "__main__":
     print(f"The target cell: first_non_trivial and traces: false")
     print(f"node_count\tedge_count\ttime_1(s)\ttime_2(s)\taut_1\taut_2")
@@ -124,6 +132,7 @@ if __name__ == "__main__":
     print(f"node_count\tedge_count\ttime_1(s)\ttime_2(s)\taut_1\taut_2\ttrace_imp_1\ttrace_imp_2")
     table1(first_non_trivial, True)
 
+
     print(f"The target cell: rightmost_first_non_trivial and traces: false")
     print(f"node_count\tedge_count\ttime_1(s)\ttime_2(s)\taut_1\taut_2")
     table1(rightmost_first_non_trivial, False)
@@ -131,6 +140,15 @@ if __name__ == "__main__":
     print(f"The target cell: rightmost_first_non_trivial and traces: true")
     print(f"node_count\tedge_count\ttime_1(s)\ttime_2(s)\taut_1\taut_2\ttrace_imp_1\ttrace_imp_2")
     table1(rightmost_first_non_trivial, True)
+    
+    
+    print(f"The target cell: first_largest and traces: false")
+    print(f"node_count\tedge_count\ttime_1(s)\ttime_2(s)\taut_1\taut_2")
+    table1(first_largest, False)
+    
+    print(f"The target cell: first_largest and traces: true")
+    print(f"node_count\tedge_count\ttime_1(s)\ttime_2(s)\taut_1\taut_2\ttrace_imp_1\ttrace_imp_2")
+    table1(first_largest, True)
 
     # table_folder("mz-aug2")
 

@@ -529,6 +529,14 @@ def rightmost_first_non_trivial(partition):
             return part
     return []
 
+def first_largest(partition):
+    max_length = 1
+    ret_part = []
+    for part in partition:
+        if len(part) > max_length:
+            max_length = len(part)
+            ret_part = part
+    return ret_part
 
 # if __name__ == "__main__":
 
