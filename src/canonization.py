@@ -44,8 +44,8 @@ def graph_canon(G, Q, traces=False):
     automorphisms = []
     ## the global minimum consist of 1) a partition and 2) the resulting adjacency matrix when permuting G.
     global_invariants = {
-        "least_partition": [[i] for i in range(len(G.nodes))],
-        "least_adjacency": create_adjacency(len(G.nodes), list(G.edges)),
+        "least_partition": [],
+        "least_adjacency": [],
         "max_trace": [[]],
         "trace_impact": False
     }
