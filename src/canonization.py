@@ -86,10 +86,10 @@ def graph_canon(G, Q, traces=False):
             Compares the current trace with the max trace, only compares to the length of the
             shortest of the two traces. 
 
-            Args:
+            `Parameters`:
                 current_trace (list (list)): current trace containing the trace for the current branch in the search tree.
 
-            Returns:
+            `Returns`:
                 boolean: true if current trace is greater than max, false otherwise.
         """
 
@@ -244,7 +244,7 @@ def graph_canon(G, Q, traces=False):
         
         B = shatter_set(p, adj_matrix)
 
-        ## NOTE: Abort refinement if current partition is lexicographically smaller than the global minimum
+        ## Abort refinement if current partition is lexicographically smaller than the global maximum
         while len(B) != 0:
             if traces and less_than_max(v.get_trace()):
                 # print("Skipped branch due to trace")
@@ -537,32 +537,3 @@ def first_largest(partition):
             max_length = len(part)
             ret_part = part
     return ret_part
-
-# if __name__ == "__main__":
-
-    # graph = nx.Graph()
-    # graph.add_nodes_from([i for i in range(9)])
-    # graph.add_edges_from([(0, 1), (0, 3), (1, 2), (1, 4), (2, 5), (3, 4), (3, 6), (4, 5), (4, 7), (5, 8), (6, 7), (7, 8)])
-
-    # res, autos = graph_canon(graph, first_non_trivial, True)
-    # print(len(autos))
-
-    # for i in range(100):
-    #     g = nx.dense_gnm_random_graph(20, 170)
-
-    #     res = test_canon(g, first_non_trivial, True)
-    #     if not res:
-    #         break
-    #     else:
-    #         print(res)
-
-
-    # new_graph = nx.Graph()
-    # new_graph.add_nodes_from([i for i in range(9)])
-    # new_graph.add_edges_from([(0, 1), (0, 3), (1, 2), (1, 3), (1, 4), (1, 5), (2, 5), (3, 6), (3, 7), (4, 7), (5, 7), (5, 8), (6, 7), (7, 8)])
-
-    # frucht_graph = nx.frucht_graph()
-
-    # res, autos, trace_impact = graph_canon(frucht_graph, first_non_trivial, True)
-    # print(len(autos))
-    # print(autos)

@@ -4,6 +4,17 @@ class TreeNode:
 
     """
         Data representation of a node object in the canonicalization search three.
+
+        Attributes:
+            partition
+
+            parent
+
+            travers_seq
+
+            children
+
+            trace (optional), initialized empty
     """
 
     def __init__(self, partition, parent, travers_seq) -> None:
